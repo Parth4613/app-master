@@ -33,7 +33,8 @@ class _WorkerReportScreenState extends State<WorkerReportScreen> {
     List<Map<String, dynamic>> filtered = [];
 
     data.forEach((key, value) {
-      if (widget.division == null || value['division']?.trim() == widget.division?.trim()) {
+      if (widget.division == null ||
+          value['division']?.trim() == widget.division?.trim()) {
         filtered.add({'id': key, 'name': value['name']});
       }
     });
@@ -86,14 +87,14 @@ class _WorkerReportScreenState extends State<WorkerReportScreen> {
     return Scaffold(
       backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: Text("Select Worker"),
+        title: Text("Select Student"),
         backgroundColor: Colors.teal,
         elevation: 0,
       ),
       body: loading
           ? Center(child: CircularProgressIndicator(color: Colors.teal))
           : workers.isEmpty
-              ? Center(child: Text("No workers found"))
+              ? Center(child: Text("No students found"))
               : ListView.builder(
                   padding: EdgeInsets.all(12),
                   itemCount: workers.length,
@@ -108,7 +109,8 @@ class _WorkerReportScreenState extends State<WorkerReportScreen> {
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: ListTile(
-                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
                           leading: CircleAvatar(
                             backgroundColor: Colors.teal,
                             child: Text(
@@ -118,9 +120,11 @@ class _WorkerReportScreenState extends State<WorkerReportScreen> {
                           ),
                           title: Text(
                             worker['name'],
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.w600),
                           ),
-                          trailing: Icon(Icons.calendar_today, color: Colors.teal),
+                          trailing:
+                              Icon(Icons.calendar_today, color: Colors.teal),
                         ),
                       ),
                     );

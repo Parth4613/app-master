@@ -17,7 +17,7 @@ import 'dart:math';
 import 'dart:io'; // Required for File operations
 import 'package:image_picker/image_picker.dart';
 import 'dart:convert';
-import 'package:flutter/foundation.dart'; // For using compute()
+import 'package:flutter/foundation.dart';
 
 class ScanPage extends StatefulWidget {
   final bool isCheckIn; // true for Check-In, false for Check-Out
@@ -35,7 +35,6 @@ class _ScanPageState extends State<ScanPage> {
   bool faceVectorExists = false;
   Interpreter? _interpreter;
   final ImagePicker _picker = ImagePicker();
-  
 
   @override
   void initState() {
@@ -58,8 +57,6 @@ class _ScanPageState extends State<ScanPage> {
     _interpreter?.close();
     super.dispose();
   }
-
-  
 
   @override
   Widget build(BuildContext context) {
@@ -136,251 +133,250 @@ class _ScanPageState extends State<ScanPage> {
   void showAddFaceDialog() {
     showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Text("Worker Not Registered"),
-          ),
+      builder: (context) => AlertDialog(
+        title: Text("Student Not Registered"),
+      ),
     );
   }
 
   void showFaceScanDialog() {
     showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Text("Face Verification"),
-            content: Text("Scan your face to mark attendance."),
-            actions: [
-              TextButton(
-                onPressed: () async {
-                  Navigator.pop(context);
-                  await scanFaceAndVerify();
-                },
-                child: Text("Scan Face"),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: Text("Face Verification"),
+        content: Text("Scan your face to mark attendance."),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await scanFaceAndVerify();
+            },
+            child: Text("Scan Face"),
           ),
+        ],
+      ),
     );
   }
 
   Future<void> checkWorkerData(String workerId) async {
-  DatabaseReference ref = FirebaseDatabase.instance.ref("workers/$workerId");
-  DatabaseEvent event = await ref.once();
+    DatabaseReference ref = FirebaseDatabase.instance.ref("workers/$workerId");
+    DatabaseEvent event = await ref.once();
 
-  if (event.snapshot.exists && event.snapshot.value != null) {
-    var data = event.snapshot.value as Map<dynamic, dynamic>;
+    if (event.snapshot.exists && event.snapshot.value != null) {
+      var data = event.snapshot.value as Map<dynamic, dynamic>;
 
-    String workerDivision = data["division"] ?? "";
-    if (workerDivision != widget.officerDivision) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => CheckInStatusPage(
-            statusMessage: "❌ Worker is not from your division",
-            isSuccess: false,
-          ),
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      faceVectorExists = data.containsKey("feature_vector");
-      scannedWorkerId = workerId;
-    });
-
-    if (faceVectorExists) {
-      showFaceScanDialog();
-    } else {
-      showAddFaceDialog();
-    }
-  } else {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => CheckInStatusPage(
-          statusMessage: "❌ Worker is not registered",
-          isSuccess: false,
-        ),
-      ),
-    );
-  }
-}
-
-
-
-  Future<void> scanFaceAndVerify() async {
-  img.Image? capturedFace = await captureAndDetectFace();
-
-  if (capturedFace == null) {
-    print("Face scan failed, staying on the same page.");
-    return; // Prevents accidental navigation
-  }
-
-  if (scannedWorkerId == null) {
-    print("ERROR: Worker ID is null. Cannot proceed.");
-    return;
-  }
-
-  final tempDir = await getTemporaryDirectory();
-  final tempPath = "${tempDir.path}/captured_face.jpg";
-  File(tempPath).writeAsBytesSync(img.encodeJpg(capturedFace));
-
-  List<double> capturedVector = extractFeatureVector(capturedFace, _interpreter!);
-  capturedVector = normalizeVector(capturedVector);
-
-  DatabaseReference ref = FirebaseDatabase.instance.ref("workers/$scannedWorkerId");
-  DatabaseEvent event = await ref.once();
-
-  if (!event.snapshot.exists || event.snapshot.value == null) {
-    print("ERROR: Worker record not found in database.");
-    return;
-  }
-
-  var data = event.snapshot.value as Map<dynamic, dynamic>;
-  if (!data.containsKey("feature_vector")) {
-    print("ERROR: Feature vector not found for worker.");
-    return;
-  }
-
-  List<double> storedVector = (data["feature_vector"] as String)
-      .split(',')
-      .map((e) => double.parse(e))
-      .toList();
-  storedVector = normalizeVector(storedVector);
-
-  double similarity = cosineSimilarity(capturedVector, storedVector);
-  print("Similarity score: $similarity");
-
-  if (similarity > 0.6) {
-    print("Face matched successfully, proceeding with check-in/check-out.");
-    if (mounted) {
-      await markAttendanceAndNavigate(scannedWorkerId!, widget.isCheckIn, tempPath);
-    }
-  } else {
-    print("Face does not match, showing failure message.");
-    if (mounted) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => CheckInStatusPage(
-            statusMessage: "Face does not match. Try again.",
-            isSuccess: false,
-          ),
-        ),
-      );
-    }
-  }
-}
-
-
-
-  Future<void> markAttendanceAndNavigate(String workerId, bool isCheckIn, String imagePath) async {
-  try {
-    DatabaseReference attendanceRef = FirebaseDatabase.instance.ref("workers/$workerId/attendance");
-
-    DateTime now = DateTime.now();
-    String formattedDate = DateFormat("dd MMM yyyy").format(now);
-    String formattedTime = DateFormat("hh:mm a").format(now);
-
-    DatabaseReference dateRef = attendanceRef.child(formattedDate);
-
-    DatabaseEvent workerEvent = await FirebaseDatabase.instance.ref("workers/$workerId").once();
-    if (!workerEvent.snapshot.exists || workerEvent.snapshot.value == null) {
-      print("ERROR: Worker data not found.");
-      return;
-    }
-
-    var workerData = workerEvent.snapshot.value as Map<dynamic, dynamic>;
-    String workerName = workerData["name"];
-    String workerdivision = workerData["division"];
-
-    if (isCheckIn) {
-      DatabaseEvent event = await dateRef.child("check_in").once();
-      if (!event.snapshot.exists) {
-        await dateRef.child("check_in").set(formattedTime);
-
+      String workerDivision = data["division"] ?? "";
+      if (workerDivision != widget.officerDivision) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
             builder: (context) => CheckInStatusPage(
-              statusMessage: "✅ Check-In Successful!",
-              isSuccess: true,
+              statusMessage: "❌ Student is not from your division",
+              isSuccess: false,
+            ),
+          ),
+        );
+        return;
+      }
+
+      setState(() {
+        faceVectorExists = data.containsKey("feature_vector");
+        scannedWorkerId = workerId;
+      });
+
+      if (faceVectorExists) {
+        showFaceScanDialog();
+      } else {
+        showAddFaceDialog();
+      }
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CheckInStatusPage(
+            statusMessage: "❌ Student is not registered",
+            isSuccess: false,
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> scanFaceAndVerify() async {
+    img.Image? capturedFace = await captureAndDetectFace();
+
+    if (capturedFace == null) {
+      print("Face scan failed, staying on the same page.");
+      return; // Prevents accidental navigation
+    }
+
+    if (scannedWorkerId == null) {
+      print("ERROR: Student ID is null. Cannot proceed.");
+      return;
+    }
+
+    final tempDir = await getTemporaryDirectory();
+    final tempPath = "${tempDir.path}/captured_face.jpg";
+    File(tempPath).writeAsBytesSync(img.encodeJpg(capturedFace));
+
+    List<double> capturedVector =
+        extractFeatureVector(capturedFace, _interpreter!);
+    capturedVector = normalizeVector(capturedVector);
+
+    DatabaseReference ref =
+        FirebaseDatabase.instance.ref("workers/$scannedWorkerId");
+    DatabaseEvent event = await ref.once();
+
+    if (!event.snapshot.exists || event.snapshot.value == null) {
+      print("ERROR: Student record not found in database.");
+      return;
+    }
+
+    var data = event.snapshot.value as Map<dynamic, dynamic>;
+    if (!data.containsKey("feature_vector")) {
+      print("ERROR: Feature vector not found for student.");
+      return;
+    }
+
+    List<double> storedVector = (data["feature_vector"] as String)
+        .split(',')
+        .map((e) => double.parse(e))
+        .toList();
+    storedVector = normalizeVector(storedVector);
+
+    double similarity = cosineSimilarity(capturedVector, storedVector);
+    print("Similarity score: $similarity");
+
+    if (similarity > 0.6) {
+      print("Face matched successfully, proceeding with check-in/check-out.");
+      if (mounted) {
+        await markAttendanceAndNavigate(
+            scannedWorkerId!, widget.isCheckIn, tempPath);
+      }
+    } else {
+      print("Face does not match, showing failure message.");
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CheckInStatusPage(
+              statusMessage: "Face does not match. Try again.",
+              isSuccess: false,
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> markAttendanceAndNavigate(
+      String workerId, bool isCheckIn, String imagePath) async {
+    try {
+      DatabaseReference attendanceRef =
+          FirebaseDatabase.instance.ref("workers/$workerId/attendance");
+
+      DateTime now = DateTime.now();
+      String formattedDate = DateFormat("dd MMM yyyy").format(now);
+      String formattedTime = DateFormat("hh:mm a").format(now);
+
+      DatabaseReference dateRef = attendanceRef.child(formattedDate);
+
+      DatabaseEvent workerEvent =
+          await FirebaseDatabase.instance.ref("workers/$workerId").once();
+      if (!workerEvent.snapshot.exists || workerEvent.snapshot.value == null) {
+        print("ERROR: Student data not found.");
+        return;
+      }
+
+      var workerData = workerEvent.snapshot.value as Map<dynamic, dynamic>;
+      String workerName = workerData["name"];
+      String workerdivision = workerData["division"];
+
+      if (isCheckIn) {
+        DatabaseEvent event = await dateRef.child("check_in").once();
+        if (!event.snapshot.exists) {
+          await dateRef.child("check_in").set(formattedTime);
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CheckInStatusPage(
+                statusMessage: "✅ Check-In Successful!",
+                isSuccess: true,
+                name: workerName,
+                employeeId: workerId,
+                division: workerdivision,
+                checkInTime: formattedTime,
+                date: formattedDate,
+                imagePath: imagePath,
+              ),
+            ),
+          );
+          return;
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CheckInStatusPage(
+                statusMessage: "⚠️ Check-In already recorded!",
+                isSuccess: false,
+              ),
+            ),
+          );
+          return;
+        }
+      } else {
+        DatabaseEvent checkInEvent = await dateRef.child("check_in").once();
+        DatabaseEvent checkOutEvent = await dateRef.child("check_out").once();
+
+        if (!checkInEvent.snapshot.exists) {
+          print("ERROR: No check-in record found for today.");
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CheckOutStatusPage(
+                statusMessage: "⚠️ No Check-In found for today!",
+                isSuccess: false,
+              ),
+            ),
+          );
+          return;
+        }
+
+        if (checkOutEvent.snapshot.exists) {
+          print("ERROR: Check-Out already recorded.");
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CheckOutStatusPage(
+                statusMessage: "⚠️ Check-Out already recorded!",
+                isSuccess: false,
+              ),
+            ),
+          );
+          return;
+        }
+
+        await dateRef.child("check_out").set(formattedTime);
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CheckOutSuccessPage(
               name: workerName,
               employeeId: workerId,
               division: workerdivision,
-              checkInTime: formattedTime,
+              checkOutTime: formattedTime,
               date: formattedDate,
               imagePath: imagePath,
             ),
           ),
         );
-        return;
-      } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => CheckInStatusPage(
-              statusMessage: "⚠️ Check-In already recorded!",
-              isSuccess: false,
-            ),
-          ),
-        );
-        return;
       }
-    } else {
-      DatabaseEvent checkInEvent = await dateRef.child("check_in").once();
-      DatabaseEvent checkOutEvent = await dateRef.child("check_out").once();
-
-      if (!checkInEvent.snapshot.exists) {
-        print("ERROR: No check-in record found for today.");
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => CheckOutStatusPage(
-              statusMessage: "⚠️ No Check-In found for today!",
-              isSuccess: false,
-            ),
-          ),
-        );
-        return;
-      }
-
-      if (checkOutEvent.snapshot.exists) {
-        print("ERROR: Check-Out already recorded.");
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => CheckOutStatusPage(
-              statusMessage: "⚠️ Check-Out already recorded!",
-              isSuccess: false,
-            ),
-          ),
-        );
-        return;
-      }
-
-      await dateRef.child("check_out").set(formattedTime);
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => CheckOutSuccessPage(
-            name: workerName,
-            employeeId: workerId,
-            division: workerdivision,
-            checkOutTime: formattedTime,
-            date: formattedDate,
-            imagePath: imagePath,
-          ),
-        ),
-      );
+    } catch (e) {
+      print("ERROR in markAttendanceAndNavigate: $e");
     }
-  } catch (e) {
-    print("ERROR in markAttendanceAndNavigate: $e");
   }
-}
-
 
   List<double> normalizeVector(List<double> vector) {
     double norm = sqrt(vector.fold(0, (sum, v) => sum + v * v));
@@ -396,7 +392,6 @@ class _ScanPageState extends State<ScanPage> {
     }
     return dotProduct; // Already normalized
   }
-
 
   Future<String?> promptForInput(String title) async {
     TextEditingController controller = TextEditingController();
@@ -458,233 +453,235 @@ class _ScanPageState extends State<ScanPage> {
   }
 
   Future<img.Image?> captureAndDetectFace() async {
-  try {
-    // Try to get image from either camera
-    final XFile? pickedImage = await _getImageWithRetry();
-    if (pickedImage == null) return null;
+    try {
+      // Try to get image from either camera
+      final XFile? pickedImage = await _getImageWithRetry();
+      if (pickedImage == null) return null;
 
-    // Process the image with proper error handling
-    return await _processCapturedImage(pickedImage);
-  } catch (e, stackTrace) {
-    print("Error in captureAndDetectFace: $e");
-    print("Stack trace: $stackTrace");
-    
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error capturing image. Please try again.")),
-      );
-    }
-    return null;
-  }
-}
+      // Process the image with proper error handling
+      return await _processCapturedImage(pickedImage);
+    } catch (e, stackTrace) {
+      print("Error in captureAndDetectFace: $e");
+      print("Stack trace: $stackTrace");
 
-Future<XFile?> _getImageWithRetry() async {
-  try {
-    final frontImage = await _picker.pickImage(
-      source: ImageSource.camera,
-      preferredCameraDevice: CameraDevice.front,
-      maxWidth: 1024,
-      imageQuality: 85,
-    );
-    if (frontImage != null) {
-      print("Front camera image captured: ${frontImage.path}");
-      return frontImage;
-    }
-  } catch (e) {
-    print("Front camera attempt failed: $e");
-  }
-
-  try {
-    final backImage = await _picker.pickImage(
-      source: ImageSource.camera,
-      preferredCameraDevice: CameraDevice.rear,
-      maxWidth: 1024,
-      imageQuality: 85,
-    );
-    if (backImage != null) {
-      print("Back camera image captured: ${backImage.path}");
-      return backImage;
-    }
-  } catch (e) {
-    print("Back camera attempt failed: $e");
-  }
-
-  return null;
-}
-
-
-Future<img.Image?> _processCapturedImage(XFile pickedImage) async {
-  try {
-    final imageBytes = await pickedImage.readAsBytes();
-    img.Image? image = await _decodeImageWithOrientation(imageBytes, pickedImage.path);
-    if (image == null) return null;
-
-    final faces = await _detectFaces(pickedImage.path);
-    print("Number of faces detected: ${faces.length}");
-
-    if (faces.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("No face detected! Please try again.")),
+          SnackBar(content: Text("Error capturing image. Please try again.")),
         );
       }
       return null;
     }
-
-    return _processBestFace(image, faces);
-  } catch (e) {
-    print("Error processing captured image: $e");
-    return null;
   }
-}
 
-
-Future<img.Image?> _decodeImageWithOrientation(Uint8List bytes, String path) async {
-  try {
-    // First attempt to decode normally
-    img.Image? image = img.decodeImage(bytes);
-    if (image == null) return null;
-
-    // Apply orientation correction
-    return img.bakeOrientation(image);
-  } catch (e) {
-    print("Error decoding image with orientation: $e");
-    return null;
-  }
-}
-
-Future<List<Face>> _detectFaces(String imagePath) async {
-  final faceDetector = FaceDetector(
-    options: FaceDetectorOptions(
-      performanceMode: FaceDetectorMode.fast, // Changed to fast for back camera
-      enableContours: true, // Helps with rotated faces
-      enableClassification: false,
-      minFaceSize: 0.15, // Smaller minimum face size
-    ),
-  );
-
-  try {
-    final inputImage = InputImage.fromFilePath(imagePath);
-    return await faceDetector.processImage(inputImage);
-  } finally {
-    faceDetector.close();
-  }
-}
-
-img.Image _processBestFace(img.Image image, List<Face> faces) {
-  // Find the most centered face
-  Face bestFace = faces.reduce((a, b) {
-    final aCenter = _faceCenter(a, image.width, image.height);
-    final bCenter = _faceCenter(b, image.width, image.height);
-    final imageCenter = Point(image.width / 2, image.height / 2);
-    
-    final aDistance = _distance(aCenter, imageCenter);
-    final bDistance = _distance(bCenter, imageCenter);
-    
-    return aDistance < bDistance ? a : b;
-  });
-
-  // Add padding around the face
-  final padding = min(bestFace.boundingBox.width, bestFace.boundingBox.height) * 0.25;
-  
-  final rect = Rect.fromLTRB(
-    max(0, bestFace.boundingBox.left - padding),
-    max(0, bestFace.boundingBox.top - padding),
-    min(image.width.toDouble(), bestFace.boundingBox.right + padding),
-    min(image.height.toDouble(), bestFace.boundingBox.bottom + padding),
-  );
-
-  return img.copyCrop(
-    image,
-    x: rect.left.toInt(),
-    y: rect.top.toInt(),
-    width: rect.width.toInt(),
-    height: rect.height.toInt(),
-  );
-}
-
-Point<double> _faceCenter(Face face, int imageWidth, int imageHeight) {
-  return Point(
-    face.boundingBox.left + face.boundingBox.width / 2,
-    face.boundingBox.top + face.boundingBox.height / 2,
-  );
-}
-
-double _distance(Point<double> a, Point<double> b) {
-  final dx = a.x - b.x;
-  final dy = a.y - b.y;
-  return sqrt(dx * dx + dy * dy);
-}
-
-Future<img.Image?> _processImageFile(String imagePath) async {
-  try {
-    // Read and properly orient the image
-    final File imageFile = File(imagePath);
-    final Uint8List bytes = await imageFile.readAsBytes();
-    img.Image? image = img.decodeImage(bytes);
-    
-    if (image == null) {
-      print("Failed to decode image");
-      return null;
+  Future<XFile?> _getImageWithRetry() async {
+    try {
+      final frontImage = await _picker.pickImage(
+        source: ImageSource.camera,
+        preferredCameraDevice: CameraDevice.front,
+        maxWidth: 1024,
+        imageQuality: 85,
+      );
+      if (frontImage != null) {
+        print("Front camera image captured: ${frontImage.path}");
+        return frontImage;
+      }
+    } catch (e) {
+      print("Front camera attempt failed: $e");
     }
 
-    // Apply orientation correction
-    image = img.bakeOrientation(image);
+    try {
+      final backImage = await _picker.pickImage(
+        source: ImageSource.camera,
+        preferredCameraDevice: CameraDevice.rear,
+        maxWidth: 1024,
+        imageQuality: 85,
+      );
+      if (backImage != null) {
+        print("Back camera image captured: ${backImage.path}");
+        return backImage;
+      }
+    } catch (e) {
+      print("Back camera attempt failed: $e");
+    }
 
-    // Face detection
-    final inputImage = InputImage.fromFilePath(imagePath);
+    return null;
+  }
+
+  Future<img.Image?> _processCapturedImage(XFile pickedImage) async {
+    try {
+      final imageBytes = await pickedImage.readAsBytes();
+      img.Image? image =
+          await _decodeImageWithOrientation(imageBytes, pickedImage.path);
+      if (image == null) return null;
+
+      final faces = await _detectFaces(pickedImage.path);
+      print("Number of faces detected: ${faces.length}");
+
+      if (faces.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("No face detected! Please try again.")),
+          );
+        }
+        return null;
+      }
+
+      return _processBestFace(image, faces);
+    } catch (e) {
+      print("Error processing captured image: $e");
+      return null;
+    }
+  }
+
+  Future<img.Image?> _decodeImageWithOrientation(
+      Uint8List bytes, String path) async {
+    try {
+      // First attempt to decode normally
+      img.Image? image = img.decodeImage(bytes);
+      if (image == null) return null;
+
+      // Apply orientation correction
+      return img.bakeOrientation(image);
+    } catch (e) {
+      print("Error decoding image with orientation: $e");
+      return null;
+    }
+  }
+
+  Future<List<Face>> _detectFaces(String imagePath) async {
     final faceDetector = FaceDetector(
       options: FaceDetectorOptions(
-        performanceMode: FaceDetectorMode.accurate,
-        enableContours: false,
+        performanceMode:
+            FaceDetectorMode.fast, // Changed to fast for back camera
+        enableContours: true, // Helps with rotated faces
         enableClassification: false,
+        minFaceSize: 0.15, // Smaller minimum face size
       ),
     );
 
-    final faces = await faceDetector.processImage(inputImage);
-    faceDetector.close();
+    try {
+      final inputImage = InputImage.fromFilePath(imagePath);
+      return await faceDetector.processImage(inputImage);
+    } finally {
+      faceDetector.close();
+    }
+  }
 
-    if (faces.isEmpty) {
-      print("No faces detected");
+  img.Image _processBestFace(img.Image image, List<Face> faces) {
+    // Find the most centered face
+    Face bestFace = faces.reduce((a, b) {
+      final aCenter = _faceCenter(a, image.width, image.height);
+      final bCenter = _faceCenter(b, image.width, image.height);
+      final imageCenter = Point(image.width / 2, image.height / 2);
+
+      final aDistance = _distance(aCenter, imageCenter);
+      final bDistance = _distance(bCenter, imageCenter);
+
+      return aDistance < bDistance ? a : b;
+    });
+
+    // Add padding around the face
+    final padding =
+        min(bestFace.boundingBox.width, bestFace.boundingBox.height) * 0.25;
+
+    final rect = Rect.fromLTRB(
+      max(0, bestFace.boundingBox.left - padding),
+      max(0, bestFace.boundingBox.top - padding),
+      min(image.width.toDouble(), bestFace.boundingBox.right + padding),
+      min(image.height.toDouble(), bestFace.boundingBox.bottom + padding),
+    );
+
+    return img.copyCrop(
+      image,
+      x: rect.left.toInt(),
+      y: rect.top.toInt(),
+      width: rect.width.toInt(),
+      height: rect.height.toInt(),
+    );
+  }
+
+  Point<double> _faceCenter(Face face, int imageWidth, int imageHeight) {
+    return Point(
+      face.boundingBox.left + face.boundingBox.width / 2,
+      face.boundingBox.top + face.boundingBox.height / 2,
+    );
+  }
+
+  double _distance(Point<double> a, Point<double> b) {
+    final dx = a.x - b.x;
+    final dy = a.y - b.y;
+    return sqrt(dx * dx + dy * dy);
+  }
+
+  Future<img.Image?> _processImageFile(String imagePath) async {
+    try {
+      // Read and properly orient the image
+      final File imageFile = File(imagePath);
+      final Uint8List bytes = await imageFile.readAsBytes();
+      img.Image? image = img.decodeImage(bytes);
+
+      if (image == null) {
+        print("Failed to decode image");
+        return null;
+      }
+
+      // Apply orientation correction
+      image = img.bakeOrientation(image);
+
+      // Face detection
+      final inputImage = InputImage.fromFilePath(imagePath);
+      final faceDetector = FaceDetector(
+        options: FaceDetectorOptions(
+          performanceMode: FaceDetectorMode.accurate,
+          enableContours: false,
+          enableClassification: false,
+        ),
+      );
+
+      final faces = await faceDetector.processImage(inputImage);
+      faceDetector.close();
+
+      if (faces.isEmpty) {
+        print("No faces detected");
+        return null;
+      }
+
+      // Process the largest face
+      return _cropLargestFace(image, faces);
+    } catch (e) {
+      print("Error processing image: $e");
       return null;
     }
-
-    // Process the largest face
-    return _cropLargestFace(image, faces);
-  } catch (e) {
-    print("Error processing image: $e");
-    return null;
   }
-}
 
-img.Image _cropLargestFace(img.Image image, List<Face> faces) {
-  // Find largest face
-  Face largestFace = faces.reduce((a, b) => 
-    (a.boundingBox.width * a.boundingBox.height) > 
-    (b.boundingBox.width * b.boundingBox.height) ? a : b);
+  img.Image _cropLargestFace(img.Image image, List<Face> faces) {
+    // Find largest face
+    Face largestFace = faces.reduce((a, b) =>
+        (a.boundingBox.width * a.boundingBox.height) >
+                (b.boundingBox.width * b.boundingBox.height)
+            ? a
+            : b);
 
-  // Add 20% padding
-  final padding = min(largestFace.boundingBox.width, 
-                     largestFace.boundingBox.height) * 0.2;
-  
-  final rect = Rect.fromLTRB(
-    max(0, largestFace.boundingBox.left - padding),
-    max(0, largestFace.boundingBox.top - padding),
-    min(image.width.toDouble(), largestFace.boundingBox.right + padding),
-    min(image.height.toDouble(), largestFace.boundingBox.bottom + padding),
-  );
+    // Add 20% padding
+    final padding =
+        min(largestFace.boundingBox.width, largestFace.boundingBox.height) *
+            0.2;
 
-  return img.copyCrop(
-    image,
-    x: rect.left.toInt(),
-    y: rect.top.toInt(),
-    width: rect.width.toInt(),
-    height: rect.height.toInt(),
-  );
-}
+    final rect = Rect.fromLTRB(
+      max(0, largestFace.boundingBox.left - padding),
+      max(0, largestFace.boundingBox.top - padding),
+      min(image.width.toDouble(), largestFace.boundingBox.right + padding),
+      min(image.height.toDouble(), largestFace.boundingBox.bottom + padding),
+    );
 
-
-
+    return img.copyCrop(
+      image,
+      x: rect.left.toInt(),
+      y: rect.top.toInt(),
+      width: rect.width.toInt(),
+      height: rect.height.toInt(),
+    );
+  }
 
   img.Image cropFace(img.Image image, Rect faceBounds) {
     int x = max(0, faceBounds.left.toInt());

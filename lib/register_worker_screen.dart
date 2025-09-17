@@ -154,7 +154,7 @@ class _RegisterWorkerScreenState extends State<RegisterWorkerScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => CheckInStatusPage(
-          statusMessage: "⚠️ Worker is already registered",
+          statusMessage: "⚠️ Student is already registered",
           isSuccess: false,
         ),
       ),
@@ -201,10 +201,10 @@ class _RegisterWorkerScreenState extends State<RegisterWorkerScreen> {
   }
 
   Future<void> registerWorker(String workerId) async {
-    String? workerName = await promptForInput("Enter Worker Name");
+    String? workerName = await promptForInput("Enter Student Name");
     if (workerName == null || workerName.isEmpty) return;
 
-    String? mobileNumber = await promptForInput("Enter Mobile Number");
+    String? mobileNumber = await promptForInput("Enter Unique student ID");
     if (mobileNumber == null || mobileNumber.isEmpty) return;
 
     String? division = await promptForDivision();
@@ -263,7 +263,7 @@ class _RegisterWorkerScreenState extends State<RegisterWorkerScreen> {
         context,
         MaterialPageRoute(
           builder: (context) => RegisterStatus(
-            statusMessage: "✅ Worker Registered Successfully",
+            statusMessage: "✅ Student Registered Successfully",
             isSuccess: true,
             name: workerName,
             employeeId: workerId,
@@ -282,7 +282,7 @@ class _RegisterWorkerScreenState extends State<RegisterWorkerScreen> {
     }).catchError((error) {
       print("Firebase Write Error: $error");
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("❌ Error storing worker data. Try again.")),
+        SnackBar(content: Text("❌ Error storing student data. Try again.")),
       );
     });
   }

@@ -296,7 +296,7 @@ class HomeScreen extends StatelessWidget {
                 buildTile(
                   context,
                   "Register",
-                  "Register a new worker with this.",
+                  "Register a new student with this.",
                   Icons.person,
                   Colors.teal,
                   null,

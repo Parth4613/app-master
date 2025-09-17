@@ -30,7 +30,7 @@ class ReportScreen extends StatelessWidget {
                 ),
                 buildTile(
                   context,
-                  "Show Workers",
+                  "Show Students",
                   "Get a summarized report of attendance.",
                   Icons.summarize,
                   Colors.green,
@@ -97,7 +97,7 @@ class ReportScreen extends StatelessWidget {
                   ),
                 ),
               );
-            } else if (title == "Show Workers") {
+            } else if (title == "Show Students") {
               Navigator.push(
                 context,
                 MaterialPageRoute(

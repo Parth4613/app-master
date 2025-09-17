@@ -96,7 +96,7 @@ class SuperAdminHomeScreen extends StatelessWidget {
           buildTile(
             context,
             "Report",
-            "View reports for all workers.",
+            "View reports for all Students.",
             Icons.assignment,
             Colors.blue,
             onTap: () {
@@ -119,7 +119,7 @@ class SuperAdminHomeScreen extends StatelessWidget {
           buildTile(
             context,
             "Register",
-            "Register a new worker with this.",
+            "Register a new student with this.",
             Icons.person,
             Colors.teal,
             onTap: () {
